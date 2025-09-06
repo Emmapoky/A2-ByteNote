@@ -1,16 +1,67 @@
+from data_structures.referential_array import ArrayR
+
 class Transaction:
     def __init__(self, timestamp, from_user, to_user):
+        # Here we basically store metadata used by ProcessingLine along w/ signature generation
         self.timestamp = timestamp
         self.from_user = from_user
         self.to_user = to_user
         self.signature = None
+    # Rmb these are constants for signature GENERATION make more
+    _SIG_LEN = 36  # fixed-signature len is 36
+    _ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789" #t he alphabet
+    _MODULUS = 36 ** _SIG_LEN #base^len 
     
     def sign(self):
         """
-        Analyse your time complexity of this method.
-        """
-        pass
+        :complexity: Best = Worst = O(S + R + L), where S = len(from_user),
+        R = len(to_user), and L is the fixed signature length.
 
+        to be continued...
+        """
+        h = 0x9E3779B185EBCA87 # large odd constant reduce collisions - "Golden Rattio Hashing" "Fibonacci Hashing" from DM
+        h ^= self.timestamp * 0xC2B2AE3D27D4EB4F # now mix timestamp into teh accumilator  
+        # Mix fromuser characters one by o1ne - O(1) each
+        i = 0 
+        u = self.from_user
+        while i < len(u):
+            h = (h * 1315423911) ^ (ord(u[i]) * 16777619) # *-then-xor mixing pattern
+            h ^= (h >> 13)  # now do right-shift xor to mix + bits into - (low) bits
+            i += 1 
+        h = (h * 1469598103934665603) ^ ord('|') # now use delimiter to separate the 2 names in the stiring stream
+
+        j = 0  # combine to-user chars with a sim. pattern using diff. constants
+        v = self.to_user
+        while j < len(v):
+            # use diff multiplier sequence to REDUCE structured alignment
+            h = (h * 2166136261) ^ (ord(v[j]) * 1099511628211)
+            h ^= (h >> 11)
+            j += 1
+        # lasst delimiter and shifts to smear the state 
+        h = (h * 1469598103934665603) ^ ord('>')
+
+        h ^= (h << 7)
+        h ^= (h >> 17)
+        h ^= (h << 31)
+
+        if h < 0: # make sure it is a non-negative value before modulo, avoids Py - mod issues
+            h = -h
+
+        # encode to fixed-width base-36 using ArrayR to lisren to ADT constraints
+        L = Transaction._SIG_LEN 
+        x = h % Transaction._MODULUS
+        chars = ArrayR(L) # temp buffer for characters
+        k = L - 1
+        while k >= 0:
+            chars[k] = Transaction._ALPHABET[x % 36]
+            x //= 36
+            k -= 1
+        s = "" # build final Py string WITHOUT using lists
+        k = 0
+        while k < L:
+            s += chars[k]
+            k += 1
+        self.signature = s # RMb store the signature for future re-use
 
 class ProcessingLine:
     def __init__(self, critical_transaction):
