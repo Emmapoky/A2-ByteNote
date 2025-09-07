@@ -1,4 +1,6 @@
 from data_structures.referential_array import ArrayR
+from data_structures.linked_queue import LinkedQueue
+from data_structures.linked_stack import LinkedStack
 
 class Transaction:
     def __init__(self, timestamp, from_user, to_user):
@@ -67,9 +69,22 @@ class Transaction:
 class ProcessingLine:
     def __init__(self, critical_transaction):
         """
-        Analyse your time complexity of this method.
+        :complexity: Best case is O(1).
+
+        Keep 3 REF/STRUCTURES:
+        - _critical: the single critical Transaction - output in the middle
+        - _before: LinkedQueue for all transactions w timestamp <= critical
+        - _after: LinkedStack for all transactions w/ timestamp > critical
+
+        2 flags control mutation:
+        1- _locked: set to True once iteration starts (blocks add_transaction)
+         2- _iter_created: ensures only one iterator may ever be created
         """
-        pass
+        self._critical = critical_transaction
+        self._before = LinkedQueue()
+        self._after = LinkedStack()
+        self._locked = False
+        self._iter_created = False
 
     def add_transaction(self, transaction):
         """
