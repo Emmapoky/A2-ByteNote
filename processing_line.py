@@ -16,8 +16,9 @@ class Transaction:
         """
         :complexity: Best = Worst = O(S + R + L), where S = len(from_user),
         R = len(to_user), and L is the fixed signature length.
-
-        to be continued...
+        
+        This is because, under the assignment assumptions, arithmetic/bit ops 
+        are O(1), so nothing else affects the cost.
         """
         h = 0x9E3779B185EBCA87 # large odd constant reduce collisions - "Golden Rattio Hashing" "Fibonacci Hashing" from DM
         h ^= self.timestamp * 0xC2B2AE3D27D4EB4F # now mix timestamp into teh accumilator  
