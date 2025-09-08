@@ -78,7 +78,7 @@ class ProcessingLine:
 
         2 flags control mutation:
         1- _locked: set to True once iteration starts (blocks add_transaction)
-         2- _iter_created: ensures only one iterator may ever be created
+         2- _iter_created: ensures only 1 iterator may ever be created
         """
         self._critical = critical_transaction
         self._before = LinkedQueue()
@@ -90,7 +90,7 @@ class ProcessingLine:
         """
         :complexity: Best = Worst = O(1).
 
-        Adds a transaction to the queue (≤ critical) or to the stack (> critical).
+        Adds a transaction to the queue (<= critical) or to the stack (> critical).
         If the line is locked (iteration started), raise sRuntimeError to preserve
         deterministic ordering and immutability during processing.
         """
@@ -105,6 +105,65 @@ class ProcessingLine:
             # LIFO for items ONLY after critical
             self._after.push(transaction)
 
+    class _Iterator:
+        def __init__(self, line):
+            # THIS Iterator class holds a ref to the line and a flag to emit the critical once
+            self._line = line
+            self._gave_critical = False
+
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            """
+            :complexity: Best case O(1); worst case O(S + R + L) if signing is needed.
+
+            So Emission order is:
+            1) All <= critical in FIFO (we serve from queue).
+            2) The single critical transaction.
+            3) All > critical in LIFO (we pop from stack).
+
+            Each time a transaction is about to be returned, sign it if needed
+            (LAZY signing ENSURES O(1) path when already signed).
+            """
+            # emmit all queued transactions with timestamp <= critical in FIFO order
+            if len(self._line._before) > 0:
+                tx = self._line._before.serve()
+                if tx.signature is None:
+                    tx.sign()  # Lazy computation of signature
+                return tx
+
+            # emit the critical transaction exactly once
+            if not self._gave_critical:
+                self._gave_critical = True
+                tx = self._line._critical
+                if tx.signature is None:
+                    tx.sign()
+                return tx
+
+            # emit transactions after the critical in LIFO order
+            if len(self._line._after) > 0:
+                tx = self._line._after.pop()
+                if tx.signature is None:
+                    tx.sign()
+                return tx
+
+            # nth left to emit
+            raise StopIteration
+
+    def __iter__(self):
+        """
+        :complexity: Best/Worst = O(1).
+
+        ENCOURAGES single-iterator semantics: the first call locks the line and
+        returns a lightweight iterator; subsequent calls raise RuntimeError.
+        Basically, this guarantees immutability during iteration and consistent ordering.
+        """
+        if self._iter_created:
+            raise RuntimeError("An iterator already exists; processing has started.")
+        self._iter_created = True
+        self._locked = True
+        return ProcessingLine._Iterator(self)
 
 if __name__ == "__main__":
     # Write tests for your code here...
