@@ -88,9 +88,22 @@ class ProcessingLine:
 
     def add_transaction(self, transaction):
         """
-        Analyse your time complexity of this method.
+        :complexity: Best = Worst = O(1).
+
+        Adds a transaction to the queue (≤ critical) or to the stack (> critical).
+        If the line is locked (iteration started), raise sRuntimeError to preserve
+        deterministic ordering and immutability during processing.
         """
-        pass
+        if self._locked:
+            raise RuntimeError("ProcessingLine is locked; cannot add transactions.")
+
+        # using partition by timestamp relative to the CRITICAL transaction
+        if transaction.timestamp <= self._critical.timestamp:
+            # FIFO for items before or = to critical
+            self._before.append(transaction)
+        else:
+            # LIFO for items ONLY after critical
+            self._after.push(transaction)
 
 
 if __name__ == "__main__":
