@@ -4,10 +4,34 @@ from processing_line import Transaction
 
 
 class ProcessingBook:
-    LEGAL_CHARACTERS = "abcdefghijklmnopqrstuvwxyz0123456789"
+    LEGAL_CHARACTERS = "abcdefghijklmnopqrstuvwxyz0123456789" # isa fixed alphabet that defines the 36 page slots at EVRY level 
 
-    def __init__(self):
+    # def __init__(self):
+    #     self.pages = ArrayR(len(ProcessingBook.LEGAL_CHARACTERS))
+    def __init__(self, level: int = 0):
+        """
+        :complexity: Best/Worst = O(1).
+
+        This structure acts like a trie over base-36 characters of a transaction's
+        signature. Each node holds 36 pages that are either:
+          -> None (empty page)
+          -> a leaf (ArrayR(2) with [Transaction, amount])
+          -> orr another ProcessingBook (sub-trie) for deeper clarification
+        """
+        self._level = level  # which char of the signature is used at this node
+
+        # Allocate EXACTLY 36 slots
         self.pages = ArrayR(len(ProcessingBook.LEGAL_CHARACTERS))
+        i = 0
+        while i < len(self.pages):
+            self.pages[i] = None  # start with all pages empty
+            i += 1
+
+        # so _size counts how many leaf entries exist in this subtree
+        self._size = 0
+
+        # -> _errors counts conflicting re-sets where the amount differs for an EXISTING key
+        self._errors = 0
     
     def page_index(self, character):
         """
