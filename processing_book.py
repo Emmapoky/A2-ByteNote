@@ -37,17 +37,31 @@ class ProcessingBook:
         """
         You may find this method helpful. It takes a character and returns the index of the relevant page.
         Time complexity of this method is O(1), because it always only checks 36 characters.
+
+        :complexity: Best/Worst = O(1).
+
+        maps a signature character to a page index using the fixed LEGAL_CHARACTERS order.
         """
         return ProcessingBook.LEGAL_CHARACTERS.index(character)
     
     def get_error_count(self):
         """
         Returns the number of errors encountered while storing transactions.
+
+        :complexity: Best/Worst = O(1).
+
+        An error is counted when attempting to re-set a transaction that is already present
+        with a different amount; the stored amount is not changed in that case.
         """
-        pass
+        return self._errors
     
     def __len__(self):
-        pass
+        """
+        :complexity: Best case is O(1) and worst case is O(1).
+        We maintain a subtree counter (_size) on every insert/delete, so returning it is
+        constant time.
+        """
+        return self._size
     
     def sample(self, required_size):
         """
