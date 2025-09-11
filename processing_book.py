@@ -50,7 +50,7 @@ class ProcessingBook:
 
         :complexity: Best/Worst = O(1).
 
-        An error is counted when attempting to re-set a transaction that is already present
+        In short, an error is counted when attempting to re-set a transaction that is already present
         with a different amount; the stored amount is not changed in that case.
         """
         return self._errors
@@ -62,6 +62,61 @@ class ProcessingBook:
         constant time.
         """
         return self._size
+    
+    def __setitem__(self, tr: Transaction, amount):
+        """
+        :complexity: Best = O(1) if the destination page is empty at this level.
+        Worst = O(D) where D is the number of additional characters needed to clearify
+        colliding signatures (D ≤ L, the signature length).
+
+        Behavior:
+        - Insert a new leaf if the page is empty.
+        - If the page already has a leaf with the same signature:
+            - If amount is the same, do nothing.
+            - If amount differs, increment _errors and keep the original amount.
+        - If the page has a different leaf (signature collision), promote to a sub-book and
+          insert both items at the next level.
+        """
+        self._insert(tr, amount)
+
+    def __getitem__(self, tr: Transaction):
+        """
+        :complexity: Best = O(1) when the needed leaf is at this level.
+        Worst = O(D) where D is the depth to the unique leaf along the trie path.
+
+        Raises KeyError if the key is unsigned or not present in the structure.
+        """
+        sig = tr.signature
+        if sig is None:
+            raise KeyError("Unsigned transaction")
+        return self._get(sig)
+
+    def __delitem__(self, tr: Transaction):
+        """
+        :complexity: Best = O(1) when the leaf is at this level.
+        Worst = O(D) where D is the depth to the leaf.
+
+        Deletes the item if present and performs node cleanup on the way back up:
+        - If a child sub-book becomes empty, replace the page with None
+        - If a child sub-book becomes a singleton, collapse it into a leaf
+        also raises KeyError if the key is unsigned or not found
+        """
+        sig = tr.signature
+        if sig is None:
+            raise KeyError("Unsigned transaction")
+        if not self._delete(sig):
+            raise KeyError("Transaction not found")
+
+    @staticmethod
+    def _leaf(tr: Transaction, amount):
+        """
+        Create a leaf node as ArrayR(2) = [Transaction, amount].
+        Using ArrayR rather than Python tuples/lists aligns with the ADT constraints.
+        """
+        pair = ArrayR(2)
+        pair[0] = tr
+        pair[1] = amount
+        return pair
     
     def sample(self, required_size):
         """
