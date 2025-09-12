@@ -118,6 +118,57 @@ class ProcessingBook:
         pair[1] = amount
         return pair
     
+    def _insert(self, tr: Transaction, amount) -> bool:
+        """
+        :complexity: Best = O(1) if this level's page is empty.
+        Worst = O(D) (D ≤ L) as we create/descend into sub-books to disambiguate.
+
+        Control flow:
+        1) Empty page: place a leaf, ++ size, return True.
+        2) Sub-book: delegate to child; if added there, increment size here.
+        3) existing leaf:
+           -> If the signature matches and amount differs: increment _errors, return False
+           -> If the signature differs: allocate a sub-book at next level and re-insert both
+        """
+        sig = tr.signature
+        idx = self.page_index(sig[self._level])
+        slot = self.pages[idx]
+
+        # case 1: empty page, place a leaf
+        if slot is None:
+            self.pages[idx] = ProcessingBook._leaf(tr, amount)
+            self._size += 1
+            return True
+
+        # case 2: page already holds a sub-book, insert recursively at next level
+        if isinstance(slot, ProcessingBook):
+            added = slot._insert_at_next(tr, amount)
+            if added:
+                self._size += 1  # Bubble up size increase
+            return added
+
+        # case 3: page holds a leaf
+        leaf_tr, leaf_amt = slot[0], slot[1]
+
+        # if same signature exists, check amount consistency
+        if leaf_tr.signature == sig:
+            if leaf_amt != amount:
+                # Do not overwrite -> record the conflict
+                self._errors += 1
+            return False
+
+        # diff signature collided at this level then promote to a sub-book
+        child = ProcessingBook(self._level + 1)
+
+        # reinsert both the existing leaf and the new item into the sub-book
+        child._insert_at_next(leaf_tr, leaf_amt)
+        child._insert_at_next(tr, amount)
+
+        # replace current page with the new sub-book and increase size by 1 (for the new item)
+        self.pages[idx] = child
+        self._size += 1
+        return True
+    
     def sample(self, required_size):
         """
         1054 Only - 1008/2085 welcome to attempt if you're up for a challenge, but no marks are allocated.
