@@ -169,6 +169,39 @@ class ProcessingBook:
         self._size += 1
         return True
     
+    def _insert_at_next(self, tr: Transaction, amount) -> bool:
+        """
+        a helper to insert at the next level; keeps the code centralized.
+        """
+        return self._insert(tr, amount)
+
+    def _get(self, sig: str):
+        """
+        :complexity: Best = O(1) if the page holds the leaf here.
+        Worst = O(D) following exactly one page per level until the leaf or a miss.
+
+        On miss:
+        - None page then is KeyError
+        - Leaf with mismatched signature then KeyError is raise
+        """
+        idx = self.page_index(sig[self._level])
+        slot = self.pages[idx]
+
+        if slot is None:
+            # Path does not exist
+            raise KeyError(sig)
+
+        if isinstance(slot, ProcessingBook):
+            # Keep descending along the determined single page per level
+            return slot._get(sig)
+
+        # Found a leaf -> validate it's the correct signature
+        if slot[0].signature == sig:
+            return slot[1]
+
+        # A different leaf sits here: not found
+        raise KeyError(sig)
+    
     def sample(self, required_size):
         """
         1054 Only - 1008/2085 welcome to attempt if you're up for a challenge, but no marks are allocated.
