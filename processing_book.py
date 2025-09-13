@@ -202,6 +202,49 @@ class ProcessingBook:
         # A different leaf sits here: not found
         raise KeyError(sig)
     
+    def _delete(self, sig: str) -> bool:
+        """
+        :complexity: Best = O(1) if deleting a leaf at this level.
+        Worst = O(D) to descend, then O(1) cleanup per level on the way back.
+
+        Cleanup rules:
+        - If child length drops to 0, remove the page (set to None)
+        - If child length becomes 1, collapse the child into a single leaf to keep structure compact
+        """
+        idx = self.page_index(sig[self._level])
+        slot = self.pages[idx]
+
+        if slot is None:
+            return False  # NTH to delete
+
+        if isinstance(slot, ProcessingBook):
+            # delegate deletion to child
+            removed = slot._delete(sig)
+            if not removed:
+                return False
+
+            # bubble up size decrement
+            self._size -= 1
+
+            # cleanup child after deletion
+            if len(slot) == 0:
+                # REMOVE empty sub-book
+                self.pages[idx] = None
+            elif len(slot) == 1:
+                # collapse singleton sub-book to a leaf to avoid unnecessary depth
+                lone_tr, lone_amt = slot._extract_single_leaf()
+                self.pages[idx] = ProcessingBook._leaf(lone_tr, lone_amt)
+
+            return True
+
+        # page holds a leaf; delete only if signature matches
+        if slot[0].signature != sig:
+            return False
+
+        self.pages[idx] = None
+        self._size -= 1
+        return True
+    
     def sample(self, required_size):
         """
         1054 Only - 1008/2085 welcome to attempt if you're up for a challenge, but no marks are allocated.
