@@ -1,5 +1,5 @@
 from data_structures import ArrayR
-
+from data_structures.linked_stack import LinkedStack
 from processing_line import Transaction
 
 
@@ -268,13 +268,66 @@ class ProcessingBook:
         # should never happen if the caller verified length == 1
         raise KeyError("Empty subtree during extract")
     
-    def sample(self, required_size):
+    def __iter__(self):
         """
-        1054 Only - 1008/2085 welcome to attempt if you're up for a challenge, but no marks are allocated.
-        Analyse your time complexity of this method.
-        """
-        pass
+        :complexity: O(1) to create the iterator; traversal cost is paid incrementally.
 
+        It implements a non-recursive depth-first traversal over FIXED page order (a to z, 0 to 9)
+        using an explicit LinkedStack of frames:
+          - frame[0] = book at this depth
+          - frame[1] = last page index visited in that book
+        """
+        stack = LinkedStack()
+
+        # seed the stack with the root and a page index of -1 (meaning 'before first')
+        frame = ArrayR(2)
+        frame[0] = self
+        frame[1] = -1
+        stack.push(frame)
+
+        class _Iterator:
+            def __init__(self, st):
+                self._stack = st
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                # classic manual DFS over fixed branching factor, skipping empty pages
+                while len(self._stack) > 0:
+                    fr = self._stack.pop()
+                    b = fr[0]      # current book (node)
+                    p = fr[1] + 1  # next page index to consider
+
+                    # advance p to the next non-empty page or fall off the end
+                    while p < len(b.pages) and b.pages[p] is None:
+                        p += 1
+                    if p >= len(b.pages):
+                        # finished all pages in this book; backtrack
+                        continue
+
+                    # re-push the current book with the updated page index to resume later
+                    fr2 = ArrayR(2)
+                    fr2[0] = b
+                    fr2[1] = p
+                    self._stack.push(fr2)
+
+                    slot = b.pages[p]
+                    if isinstance(slot, ProcessingBook):
+                        # dive into the child sub-book, starting before its first page
+                        child = ArrayR(2)
+                        child[0] = slot
+                        child[1] = -1
+                        self._stack.push(child)
+                        continue
+
+                    # yield a leaf as (Transaction, amount)
+                    return (slot[0], slot[1])
+
+                # entire trie exhausted
+                raise StopIteration
+
+        return _Iterator(stack)
 
 if __name__ == "__main__":
     # Write tests for your code here...
