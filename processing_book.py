@@ -245,6 +245,29 @@ class ProcessingBook:
         self._size -= 1
         return True
     
+    def _extract_single_leaf(self):
+        """
+        :complexity: Best = O(1) if the single element is a leaf at this level.
+        Worst = O(H) scanning fixed 36 pages per level until finding the unique leaf,
+        recursing at most once when the single child is itself a sub-book.
+        """
+        i = 0
+        while i < len(self.pages):
+            slot = self.pages[i]
+            if slot is None:
+                i += 1
+                continue
+
+            if isinstance(slot, ProcessingBook):
+                # delegate to the only non-empty child
+                return slot._extract_single_leaf()
+
+            # found the single leaf directly
+            return slot[0], slot[1]
+
+        # should never happen if the caller verified length == 1
+        raise KeyError("Empty subtree during extract")
+    
     def sample(self, required_size):
         """
         1054 Only - 1008/2085 welcome to attempt if you're up for a challenge, but no marks are allocated.
