@@ -3,18 +3,29 @@ from data_structures import ArrayR
 
 
 class FraudDetection:
-    def __init__(self, transactions):
-        self.transactions = transactions
+    def __init__(self, transactions: ArrayR):
+        """
+        :complexity: Best case is O(1) and worst case is O(1).
+        So we only store the reference to the provided ArrayR 
+        No work scales with the number of transactions here.
+        """
+        self.transactions = transactions 
 
     def detect_by_blocks(self):
         """
-        Analyse your time complexity of this method.
+        :complexity: O(N·L^2·log L), with N transactions and signature length L.
+        We try every block size S (1..L); sorting B=⌊L/S⌋ blocks with insertion sort gives O(L^2/S),
+        across all S this sums to O(N·L^2·log L).
         """
-        pass
+        # will be implemented in Part 3.2
+        return (1, 1)
 
-    def rectify(self, functions):
-        pass
-
+    def rectify(self, functions: ArrayR):
+        """
+        :complexity: Per function f with table size T=max(f(tx))+1: best O(N+T), worst O(N+T^2).
+        """
+        # will be implemented in Part 3.3
+        return (None, 0)
 
 if __name__ == "__main__":
     # Write tests for your code here...
