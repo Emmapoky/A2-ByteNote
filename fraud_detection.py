@@ -1,4 +1,6 @@
 from processing_line import Transaction
+from data_structures.hash_table_separate_chaining import HashTableSeparateChaining
+from algorithms.insertionsort import insertion_sort
 from data_structures import ArrayR
 
 
@@ -13,12 +15,69 @@ class FraudDetection:
 
     def detect_by_blocks(self):
         """
-        :complexity: O(N·L^2·log L), with N transactions and signature length L.
+        :complexity: O(N*L^2*log L), with N transactions and signature length L.
         We try every block size S (1..L); sorting B=⌊L/S⌋ blocks with insertion sort gives O(L^2/S),
-        across all S this sums to O(N·L^2·log L).
+        across all S this sums to O(N*L^2·log L).
         """
-        # will be implemented in Part 3.2
-        return (1, 1)
+        first_sig = None
+        for t in self.transactions:
+            if first_sig is None:
+                first_sig = t.signature
+            N += 1
+        if N == 0:
+            return (1, 1)
+
+        L = len(first_sig)
+        best_S = 1
+        best_score = 1
+        S = 1
+        while S <= L:
+            groups = HashTableSeparateChaining(97)
+            r = L - (L // S) * S
+            B = L // S
+
+            for t in self.transactions:
+                sig = t.signature
+                tail = "" if r == 0 else sig[L - r:L]
+
+                blocks = ArrayR(B)
+                i = 0
+                while i < B:
+                    start = i * S
+                    blocks[i] = sig[start:start + S]
+                    i += 1
+
+                if B > 1:
+                    insertion_sort(blocks)
+
+                key = tail + "|"
+                i = 0
+                while i < B:
+                    key = key + blocks[i] + "|"
+                    i += 1
+
+                # this is the increment group size
+                try:
+                    c = groups[key]
+                    groups[key] = c + 1
+                except KeyError:
+                    groups[key] = 1
+
+            # computee suspicion score = product of all group sizes
+            score = 1
+            items = groups.items()  # arrayR of (key, value) PAIRS
+            i = 0
+            while i < len(items):
+                kv = items[i]
+                score *= kv[1]
+                i += 1
+
+            if score > best_score:
+                best_score = score
+                best_S = S
+            S += 1
+
+        return (best_S, best_score)
 
     def rectify(self, functions: ArrayR):
         """
