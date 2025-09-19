@@ -82,9 +82,66 @@ class FraudDetection:
     def rectify(self, functions: ArrayR):
         """
         :complexity: Per function f with table size T=max(f(tx))+1: best O(N+T), worst O(N+T^2).
+        We hash all N once to build counts
         """
-        # will be implemented in Part 3.3
-        return (None, 0)
+        # count N ONE TIME ONCE
+        N = 0
+        for _ in self.transactions:
+            N += 1
+
+        best_func = None
+        best_mpcl = None
+
+        for f in functions:
+            vals = ArrayR(N)
+            max_v = 0
+            i = 0
+            for t in self.transactions:
+                v = f(t)
+                vals[i] = v
+                if v > max_v:
+                    max_v = v
+                i += 1
+
+            T = max_v + 1
+            if N > T:
+                mpcl = T
+            else:
+                # build counts PER index
+                counts = ArrayR(T)
+                i = 0
+                while i < T:
+                    counts[i] = 0
+                    i += 1
+
+                i = 0
+                while i < N:
+                    idx = vals[i]
+                    counts[idx] = counts[idx] + 1
+                    i += 1
+
+                mpcl = 0
+                j = 0
+                while j < T:
+                    if counts[j] > 0:
+                        cum = 0
+                        tlen = 0
+                        while tlen < T:
+                            idx = (j + tlen) % T
+                            cum += counts[idx]
+                            if cum >= (tlen + 2):
+                                tlen += 1
+                                if tlen > mpcl:
+                                    mpcl = tlen
+                            else:
+                                break
+                    j += 1
+
+            if (best_mpcl is None) or (mpcl < best_mpcl):
+                best_mpcl = mpcl
+                best_func = f
+
+        return (best_func, best_mpcl)
 
 if __name__ == "__main__":
     # Write tests for your code here...
