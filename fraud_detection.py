@@ -8,16 +8,18 @@ class FraudDetection:
     def __init__(self, transactions: ArrayR):
         """
         :complexity: Best case is O(1) and worst case is O(1).
-        So we only store the reference to the provided ArrayR 
-        No work scales with the number of transactions here.
+        
+        We only store the reference to the provided ArrayR; no work scales with the
+        number of transactions here.
         """
         self.transactions = transactions 
 
     def detect_by_blocks(self):
         """
         :complexity: O(N*L^2*log L), with N transactions and signature length L.
-        We try every block size S (1..L); sorting B=⌊L/S⌋ blocks with insertion sort gives O(L^2/S),
-        across all S this sums to O(N*L^2·log L).
+        
+        We try every block size S (1..L). Per signature that means sorting B=⌊L/S⌋ blocks
+        by insertion sort (~O(B^2·S)=O(L^2/S)); across N items and all S, this sums to O(N·L^2*log L).
         """
         first_sig = None
         for t in self.transactions:
@@ -56,16 +58,16 @@ class FraudDetection:
                     key = key + blocks[i] + "|"
                     i += 1
 
-                # this is the increment group size
+                # Increment group size
                 try:
                     c = groups[key]
                     groups[key] = c + 1
                 except KeyError:
                     groups[key] = 1
 
-            # computee suspicion score = product of all group sizes
+            # Compute suspicion score = product of all group sizes
             score = 1
-            items = groups.items()  # arrayR of (key, value) PAIRS
+            items = groups.items()  # ArrayR of (key, value) pairs (as 2-length arrays/tuples)
             i = 0
             while i < len(items):
                 kv = items[i]
@@ -82,9 +84,12 @@ class FraudDetection:
     def rectify(self, functions: ArrayR):
         """
         :complexity: Per function f with table size T=max(f(tx))+1: best O(N+T), worst O(N+T^2).
-        We hash all N once to build counts
+        
+        We hash all N once to build counts, then scan circular windows to find the worst
+        probe chain—quick when windows break early (~T), quadratic in a packed worst case (~T^2).
+        Sum per-function costs over all candidates..
         """
-        # count N ONE TIME ONCE
+        # Count N once
         N = 0
         for _ in self.transactions:
             N += 1
@@ -107,7 +112,7 @@ class FraudDetection:
             if N > T:
                 mpcl = T
             else:
-                # build counts PER index
+                # Build counts per index
                 counts = ArrayR(T)
                 i = 0
                 while i < T:
