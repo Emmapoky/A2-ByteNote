@@ -1,7 +1,7 @@
-from processing_line import Transaction
+from data_structures import ArrayR
 from data_structures.hash_table_separate_chaining import HashTableSeparateChaining
 from algorithms.insertionsort import insertion_sort
-from data_structures import ArrayR
+from processing_line import Transaction
 
 
 class FraudDetection:
