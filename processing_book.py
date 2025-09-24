@@ -4,33 +4,22 @@ from processing_line import Transaction
 
 
 class ProcessingBook:
-    LEGAL_CHARACTERS = "abcdefghijklmnopqrstuvwxyz0123456789" # isa fixed alphabet that defines the 36 page slots at EVRY level 
+    LEGAL_CHARACTERS = "abcdefghijklmnopqrstuvwxyz0123456789"
 
-    # def __init__(self):
-    #     self.pages = ArrayR(len(ProcessingBook.LEGAL_CHARACTERS))
     def __init__(self, level: int = 0):
         """
-        :complexity: Best/Worst = O(1).
-
-        This structure acts like a trie over base-36 characters of a transaction's
-        signature. Each node holds 36 pages that are either:
-          -> None (empty page)
-          -> a leaf (ArrayR(2) with [Transaction, amount])
-          -> orr another ProcessingBook (sub-trie) for deeper clarification
+        :complexity: Best case is O(1) and worst case is O(1).
+        We allocate a fixed 36-slot ArrayR for pages and initialise counters; the work
+        does not depend on how many transactions will be stored later.
         """
-        self._level = level  # which char of the signature is used at this node
+        self._level = level  
 
-        # Allocate EXACTLY 36 slots
         self.pages = ArrayR(len(ProcessingBook.LEGAL_CHARACTERS))
         i = 0
         while i < len(self.pages):
-            self.pages[i] = None  # start with all pages empty
+            self.pages[i] = None  
             i += 1
-
-        # so _size counts how many leaf entries exist in this subtree
         self._size = 0
-
-        # -> _errors counts conflicting re-sets where the amount differs for an EXISTING key
         self._errors = 0
     
     def page_index(self, character):
@@ -38,9 +27,8 @@ class ProcessingBook:
         You may find this method helpful. It takes a character and returns the index of the relevant page.
         Time complexity of this method is O(1), because it always only checks 36 characters.
 
-        :complexity: Best/Worst = O(1).
-
-        maps a signature character to a page index using the fixed LEGAL_CHARACTERS order.
+        :complexity: Best case is O(1) and worst case is O(1).
+        We index within a fixed alphabet of 36 characters (a–z then 0–9).
         """
         return ProcessingBook.LEGAL_CHARACTERS.index(character)
     
@@ -48,10 +36,9 @@ class ProcessingBook:
         """
         Returns the number of errors encountered while storing transactions.
 
-        :complexity: Best/Worst = O(1).
-
-        In short, an error is counted when attempting to re-set a transaction that is already present
-        with a different amount; the stored amount is not changed in that case.
+        :complexity: Best case is O(1) and worst case is O(1).
+        Returns the number of attempted updates that provided a different amount for an
+        already-stored transaction; the stored amount is never changed.
         """
         return self._errors
     
@@ -65,26 +52,24 @@ class ProcessingBook:
     
     def __setitem__(self, tr: Transaction, amount):
         """
-        :complexity: Best = O(1) if the destination page is empty at this level.
-        Worst = O(D) where D is the number of additional characters needed to clearify
-        colliding signatures (D ≤ L, the signature length).
+        :complexity: Best case is O(1) where the destination page at this level is
+        empty, so we place a leaf directly.
 
-        Behavior:
-        - Insert a new leaf if the page is empty.
-        - If the page already has a leaf with the same signature:
-            - If amount is the same, do nothing.
-            - If amount differs, increment _errors and keep the original amount.
-        - If the page has a different leaf (signature collision), promote to a sub-book and
-          insert both items at the next level.
+        Worst case is O(D), where D is the number of signature characters needed to
+        disambiguate collisions (D larger or equal to L, the signature length). 
+        We can descend through at most D nested books, doing O(1) work per level. 
+        If the key already exists, we either do nothing (same amount) or increment 
+        the error counter (different amount) without changing the stored value.
         """
         self._insert(tr, amount)
 
     def __getitem__(self, tr: Transaction):
         """
-        :complexity: Best = O(1) when the needed leaf is at this level.
-        Worst = O(D) where D is the depth to the unique leaf along the trie path.
+        :complexity: Best case is O(1) when the required entry is a leaf at this level.
 
-        Raises KeyError if the key is unsigned or not present in the structure.
+        Worst case is O(D), where D is the depth to the unique leaf (D <= L). We follow
+        at most one page per level until the leaf is reached; each level costs O(1).
+        Raises KeyError if the transaction is not stored.
         """
         sig = tr.signature
         if sig is None:
@@ -93,13 +78,14 @@ class ProcessingBook:
 
     def __delitem__(self, tr: Transaction):
         """
-        :complexity: Best = O(1) when the leaf is at this level.
-        Worst = O(D) where D is the depth to the leaf.
+        :complexity: Best case is O(1) when the page at this level contains exactly the
+        leaf to delete.
 
-        Deletes the item if present and performs node cleanup on the way back up:
-        - If a child sub-book becomes empty, replace the page with None
-        - If a child sub-book becomes a singleton, collapse it into a leaf
-        also raises KeyError if the key is unsigned or not found
+        Worst case is O(D), where D is the depth to that leaf (D <= L). We go down (descend) 
+        to the leaf and, on the way back up, perform at most one O(1) collapse check per level
+        (empties and singletons) to keep the structure minimal. 
+
+        Additionally, if the transaction is not stored it raises KeyError.
         """
         sig = tr.signature
         if sig is None:
@@ -109,10 +95,6 @@ class ProcessingBook:
 
     @staticmethod
     def _leaf(tr: Transaction, amount):
-        """
-        Create a leaf node as ArrayR(2) = [Transaction, amount].
-        Using ArrayR rather than Python tuples/lists aligns with the ADT constraints.
-        """
         pair = ArrayR(2)
         pair[0] = tr
         pair[1] = amount
@@ -120,136 +102,95 @@ class ProcessingBook:
     
     def _insert(self, tr: Transaction, amount) -> bool:
         """
-        :complexity: Best = O(1) if this level's page is empty.
-        Worst = O(D) (D ≤ L) as we create/descend into sub-books to disambiguate.
+        :complexity: Best case is O(1) when the destination page at the current level
+        is empty and we place a leaf.
 
-        Control flow:
-        1) Empty page: place a leaf, ++ size, return True.
-        2) Sub-book: delegate to child; if added there, increment size here.
-        3) existing leaf:
-           -> If the signature matches and amount differs: increment _errors, return False
-           -> If the signature differs: allocate a sub-book at next level and re-insert both
+        Worst case is O(D), where D is the number of signature characters required to
+        separate colliding keys (D is less or equal to L). We create/delegate through 
+        at most D nested books, performing only O(1) work per level.
         """
         sig = tr.signature
         idx = self.page_index(sig[self._level])
         slot = self.pages[idx]
 
-        # case 1: empty page, place a leaf
         if slot is None:
             self.pages[idx] = ProcessingBook._leaf(tr, amount)
             self._size += 1
             return True
 
-        # case 2: page already holds a sub-book, insert recursively at next level
         if isinstance(slot, ProcessingBook):
             added = slot._insert_at_next(tr, amount)
             if added:
-                self._size += 1  # Bubble up size increase
+                self._size += 1  
             return added
 
-        # case 3: page holds a leaf
         leaf_tr, leaf_amt = slot[0], slot[1]
-
-        # if same signature exists, check amount consistency
         if leaf_tr.signature == sig:
             if leaf_amt != amount:
-                # Do not overwrite -> record the conflict
                 self._errors += 1
             return False
 
-        # diff signature collided at this level then promote to a sub-book
         child = ProcessingBook(self._level + 1)
-
-        # reinsert both the existing leaf and the new item into the sub-book
         child._insert_at_next(leaf_tr, leaf_amt)
         child._insert_at_next(tr, amount)
-
-        # replace current page with the new sub-book and increase size by 1 (for the new item)
         self.pages[idx] = child
         self._size += 1
         return True
     
     def _insert_at_next(self, tr: Transaction, amount) -> bool:
-        """
-        a helper to insert at the next level; keeps the code centralized.
-        """
         return self._insert(tr, amount)
 
     def _get(self, sig: str):
-        """
-        :complexity: Best = O(1) if the page holds the leaf here.
-        Worst = O(D) following exactly one page per level until the leaf or a miss.
 
-        On miss:
-        - None page then is KeyError
-        - Leaf with mismatched signature then KeyError is raise
-        """
         idx = self.page_index(sig[self._level])
         slot = self.pages[idx]
-
         if slot is None:
-            # Path does not exist
             raise KeyError(sig)
-
         if isinstance(slot, ProcessingBook):
-            # Keep descending along the determined single page per level
             return slot._get(sig)
-
-        # Found a leaf -> validate it's the correct signature
         if slot[0].signature == sig:
             return slot[1]
-
-        # A different leaf sits here: not found
         raise KeyError(sig)
     
     def _delete(self, sig: str) -> bool:
         """
-        :complexity: Best = O(1) if deleting a leaf at this level.
-        Worst = O(D) to descend, then O(1) cleanup per level on the way back.
+       :complexity: Best case is O(1) when the target is a leaf in the current page.
 
-        Cleanup rules:
-        - If child length drops to 0, remove the page (set to None)
-        - If child length becomes 1, collapse the child into a single leaf to keep structure compact
+        Worst case is O(D), where D is less or equal to L is the depth to that leaf. 
+        We descend to the leaf and then possibly collapse an empty or singleton child 
+        on the way back up, doing at most one O(1) check per level.
         """
         idx = self.page_index(sig[self._level])
         slot = self.pages[idx]
-
         if slot is None:
-            return False  # NTH to delete
+            return False 
 
         if isinstance(slot, ProcessingBook):
-            # delegate deletion to child
             removed = slot._delete(sig)
             if not removed:
                 return False
-
-            # bubble up size decrement
             self._size -= 1
-
-            # cleanup child after deletion
             if len(slot) == 0:
-                # REMOVE empty sub-book
                 self.pages[idx] = None
             elif len(slot) == 1:
-                # collapse singleton sub-book to a leaf to avoid unnecessary depth
                 lone_tr, lone_amt = slot._extract_single_leaf()
                 self.pages[idx] = ProcessingBook._leaf(lone_tr, lone_amt)
-
             return True
 
-        # page holds a leaf; delete only if signature matches
         if slot[0].signature != sig:
             return False
-
         self.pages[idx] = None
         self._size -= 1
         return True
     
     def _extract_single_leaf(self):
         """
-        :complexity: Best = O(1) if the single element is a leaf at this level.
-        Worst = O(H) scanning fixed 36 pages per level until finding the unique leaf,
-        recursing at most once when the single child is itself a sub-book.
+        :complexity: Best case is O(1) if the single element is directly stored at this
+        level.
+
+        Worst case is O(H), where H is the current nesting height (H is less or equal to L). 
+        We scan up to 36 fixed pages per level to find the unique non-empty slot, 
+        then recurse once.
         """
         i = 0
         while i < len(self.pages):
@@ -257,29 +198,19 @@ class ProcessingBook:
             if slot is None:
                 i += 1
                 continue
-
             if isinstance(slot, ProcessingBook):
-                # delegate to the only non-empty child
                 return slot._extract_single_leaf()
-
-            # found the single leaf directly
             return slot[0], slot[1]
-
-        # should never happen if the caller verified length == 1
         raise KeyError("Empty subtree during extract")
     
     def __iter__(self):
         """
-        :complexity: O(1) to create the iterator; traversal cost is paid incrementally.
-
-        It implements a non-recursive depth-first traversal over FIXED page order (a to z, 0 to 9)
-        using an explicit LinkedStack of frames:
-          - frame[0] = book at this depth
-          - frame[1] = last page index visited in that book
+        :complexity: Best case is O(1) and worst case is O(1) to create the iterator.
+        
+        Traversal cost is paid lazily by successive next() calls. Items are yielded in
+        page order (a..z then 0..9), depth-first across nested books.
         """
         stack = LinkedStack()
-
-        # seed the stack with the root and a page index of -1 (meaning 'before first')
         frame = ArrayR(2)
         frame[0] = self
         frame[1] = -1
@@ -293,20 +224,17 @@ class ProcessingBook:
                 return self
 
             def __next__(self):
-                # classic manual DFS over fixed branching factor, skipping empty pages
                 while len(self._stack) > 0:
                     fr = self._stack.pop()
-                    b = fr[0]      # current book (node)
-                    p = fr[1] + 1  # next page index to consider
+                    b = fr[0]      
+                    p = fr[1] + 1 
 
-                    # advance p to the next non-empty page or fall off the end
                     while p < len(b.pages) and b.pages[p] is None:
                         p += 1
+
                     if p >= len(b.pages):
-                        # finished all pages in this book; backtrack
                         continue
 
-                    # re-push the current book with the updated page index to resume later
                     fr2 = ArrayR(2)
                     fr2[0] = b
                     fr2[1] = p
@@ -314,17 +242,14 @@ class ProcessingBook:
 
                     slot = b.pages[p]
                     if isinstance(slot, ProcessingBook):
-                        # dive into the child sub-book, starting before its first page
                         child = ArrayR(2)
                         child[0] = slot
                         child[1] = -1
                         self._stack.push(child)
                         continue
 
-                    # yield a leaf as (Transaction, amount)
                     return (slot[0], slot[1])
 
-                # entire trie exhausted
                 raise StopIteration
 
         return _Iterator(stack)
