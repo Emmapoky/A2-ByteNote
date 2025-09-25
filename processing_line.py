@@ -4,15 +4,14 @@ from data_structures.linked_stack import LinkedStack
 
 class Transaction:
     def __init__(self, timestamp, from_user, to_user):
-        # Here we basically store metadata used by ProcessingLine along w/ signature generation
         self.timestamp = timestamp
         self.from_user = from_user
         self.to_user = to_user
         self.signature = None
-    # Rmb these are constants for signature GENERATION make more
-    _SIG_LEN = 36  # fixed-signature len is 36
-    _ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789" #t he alphabet
-    _MODULUS = 36 ** _SIG_LEN #base^len 
+
+    _SIG_LEN = 36  
+    _ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789" 
+    _MODULUS = 36 ** _SIG_LEN 
     
     def sign(self):
         """
@@ -22,63 +21,60 @@ class Transaction:
         This is because, under the assignment assumptions, arithmetic/bit ops 
         are O(1), so nothing else affects the cost.
         """
-        h = 0x9E3779B185EBCA87 # large odd constant reduce collisions - "Golden Rattio Hashing" "Fibonacci Hashing" from DM
-        h ^= self.timestamp * 0xC2B2AE3D27D4EB4F # now mix timestamp into teh accumilator  
-        # Mix fromuser characters one by o1ne - O(1) each
+        h = 0x9E3779B185EBCA87 
+        h ^= self.timestamp * 0xC2B2AE3D27D4EB4F 
+   
         i = 0 
         u = self.from_user
         while i < len(u):
-            h = (h * 1315423911) ^ (ord(u[i]) * 16777619) # *-then-xor mixing pattern
-            h ^= (h >> 13)  # now do right-shift xor to mix + bits into - (low) bits
+            h = (h * 1315423911) ^ (ord(u[i]) * 16777619)
+            h ^= (h >> 13) 
             i += 1 
-        h = (h * 1469598103934665603) ^ ord('|') # now use delimiter to separate the 2 names in the stiring stream
+        h = (h * 1469598103934665603) ^ ord('|')
 
-        j = 0  # combine to-user chars with a sim. pattern using diff. constants
+        j = 0 
         v = self.to_user
         while j < len(v):
-            # use diff multiplier sequence to REDUCE structured alignment
+           
             h = (h * 2166136261) ^ (ord(v[j]) * 1099511628211)
             h ^= (h >> 11)
             j += 1
-        # lasst delimiter and shifts to smear the state 
+
         h = (h * 1469598103934665603) ^ ord('>')
 
         h ^= (h << 7)
         h ^= (h >> 17)
         h ^= (h << 31)
 
-        if h < 0: # make sure it is a non-negative value before modulo, avoids Py - mod issues
+        if h < 0: 
             h = -h
 
-        # encode to fixed-width base-36 using ArrayR to lisren to ADT constraints
+     
         L = Transaction._SIG_LEN 
         x = h % Transaction._MODULUS
-        chars = ArrayR(L) # temp buffer for characters
+        chars = ArrayR(L) 
         k = L - 1
         while k >= 0:
             chars[k] = Transaction._ALPHABET[x % 36]
             x //= 36
             k -= 1
-        s = "" # build final Py string WITHOUT using lists
+        s = "" 
         k = 0
         while k < L:
             s += chars[k]
             k += 1
-        self.signature = s # RMb store the signature for future re-use
+        self.signature = s 
 
 class ProcessingLine:
     def __init__(self, critical_transaction):
         """
         :complexity: Best case is O(1).
+        Best case happens because we only store references and construct empty
+        provided ADTs (a queue for ≤ critical and a stack for > critical).
 
-        Keep 3 REF/STRUCTURES:
-        - _critical: the single critical Transaction - output in the middle
-        - _before: LinkedQueue for all transactions w timestamp <= critical
-        - _after: LinkedStack for all transactions w/ timestamp > critical
-
-        2 flags control mutation:
-        1- _locked: set to True once iteration starts (blocks add_transaction)
-         2- _iter_created: ensures only 1 iterator may ever be created
+        Worst case is O(1).
+        It's O(1) because no work scales with the number of transactions; so we 
+        just initialise fields and empty structures.
         """
         self._critical = critical_transaction
         self._before = LinkedQueue()
@@ -90,24 +86,19 @@ class ProcessingLine:
         """
         :complexity: Best = Worst = O(1).
 
-        Adds a transaction to the queue (<= critical) or to the stack (> critical).
-        If the line is locked (iteration started), raise sRuntimeError to preserve
-        deterministic ordering and immutability during processing.
+        This is because we do a single timestamp comparison and one O(1) operation on the
+        appropriate ADT (enqueue to the queue or push to the stack). If the line
+        is locked, raising RuntimeError is also O(1).
         """
         if self._locked:
             raise RuntimeError("ProcessingLine is locked; cannot add transactions.")
-
-        # using partition by timestamp relative to the CRITICAL transaction
         if transaction.timestamp <= self._critical.timestamp:
-            # FIFO for items before or = to critical
             self._before.append(transaction)
         else:
-            # LIFO for items ONLY after critical
             self._after.push(transaction)
 
     class _Iterator:
         def __init__(self, line):
-            # THIS Iterator class holds a ref to the line and a flag to emit the critical once
             self._line = line
             self._gave_critical = False
 
@@ -116,24 +107,25 @@ class ProcessingLine:
 
         def __next__(self):
             """
-            :complexity: Best case O(1); worst case O(S + R + L) if signing is needed.
+            :complexity: Best case is O(1).
+            Best case happens when the next transaction is already signed and sits
+            at the front/top of the respective ADT: so we just need to perform 
+            a single O(1) serve (queue) or pop (stack) and return it without signing cost.
 
-            So Emission order is:
-            1) All <= critical in FIFO (we serve from queue).
-            2) The single critical transaction.
-            3) All > critical in LIFO (we pop from stack).
-
-            Each time a transaction is about to be returned, sign it if needed
-            (LAZY signing ENSURES O(1) path when already signed).
+            Worst case is O(S + R + L) where S = len(tx.from_user),
+            R = len(tx.to_user), and L is the fixed signature length.
+            It's O(S + R + L) because if the next transaction is unsigned we first
+            perform the same O(1) ADT operation (serve/pop) and then call sign(),
+            which scans usernames once and writes exactly L base-36 characters.
             """
-            # emmit all queued transactions with timestamp <= critical in FIFO order
+            # Emit <= critical in FIFO order
             if len(self._line._before) > 0:
                 tx = self._line._before.serve()
                 if tx.signature is None:
-                    tx.sign()  # Lazy computation of signature
+                    tx.sign()  
                 return tx
 
-            # emit the critical transaction exactly once
+            # Then the critical, once
             if not self._gave_critical:
                 self._gave_critical = True
                 tx = self._line._critical
@@ -141,23 +133,25 @@ class ProcessingLine:
                     tx.sign()
                 return tx
 
-            # emit transactions after the critical in LIFO order
+            # Then > critical in LIFO order
             if len(self._line._after) > 0:
                 tx = self._line._after.pop()
                 if tx.signature is None:
                     tx.sign()
                 return tx
 
-            # nth left to emit
+            # Done
             raise StopIteration
 
     def __iter__(self):
         """
-        :complexity: Best/Worst = O(1).
+        :complexity: Best case is O(1).
+        Best case happens when no iterator exists yet: we set two flags (lock the
+        line and mark the iterator as created) and return a lightweight iterator.
 
-        ENCOURAGES single-iterator semantics: the first call locks the line and
-        returns a lightweight iterator; subsequent calls raise RuntimeError.
-        Basically, this guarantees immutability during iteration and consistent ordering.
+        Worst case is O(1).
+        It's O(1) because even in the error path we only check a boolean and raise
+        RuntimeError so no data-structure traversal occurs.
         """
         if self._iter_created:
             raise RuntimeError("An iterator already exists; processing has started.")

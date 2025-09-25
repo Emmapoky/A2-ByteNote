@@ -2,7 +2,6 @@ from data_structures import ArrayR
 from data_structures.linked_stack import LinkedStack
 from processing_line import Transaction
 
-
 class ProcessingBook:
     LEGAL_CHARACTERS = "abcdefghijklmnopqrstuvwxyz0123456789"
 
@@ -13,7 +12,6 @@ class ProcessingBook:
         does not depend on how many transactions will be stored later.
         """
         self._level = level  
-
         self.pages = ArrayR(len(ProcessingBook.LEGAL_CHARACTERS))
         i = 0
         while i < len(self.pages):
